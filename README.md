@@ -17,4 +17,8 @@ cp .env.example .env  # completar con tus API keys
 python -m app.ui
 ```
 
+Abre `http://127.0.0.1:7860` en el navegador.
+
+> **Nota:** el componente de audio de Gradio crashea la pestaña en Brave (probado en este proyecto). Usa Chromium/Chrome o Firefox mientras no se investigue más a fondo.
+
 Ver `prompt_maestro_app_speaking_ingles.md` (carpeta padre) para la especificación completa del proyecto.
