@@ -10,7 +10,7 @@ Escribe "exit" para salir.
 
 import sys
 
-from app.teacher_llm import DEFAULT_PERSONA, PERSONAS, get_teacher_reply
+from app.teacher_llm import DEFAULT_PERSONA, PERSONAS, get_teacher_turn
 
 
 def main() -> None:
@@ -28,10 +28,13 @@ def main() -> None:
             break
 
         history.append({"role": "user", "content": user_input})
-        reply = get_teacher_reply(history, persona_key=persona_key)
-        history.append({"role": "assistant", "content": reply})
+        turn = get_teacher_turn(history, persona_key=persona_key)
+        history.append({"role": "assistant", "content": turn["reply"], "suggestion": turn.get("suggestion")})
 
-        print(f"Profesor: {reply}\n")
+        print(f"Profesor: {turn['reply']}")
+        if turn.get("suggestion"):
+            print(f"💡 {turn['suggestion']}")
+        print()
 
 
 if __name__ == "__main__":

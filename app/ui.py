@@ -7,15 +7,20 @@ import tempfile
 import gradio as gr
 
 from app.stt import transcribe_audio
-from app.teacher_llm import DEFAULT_PERSONA, get_teacher_reply
+from app.teacher_llm import DEFAULT_PERSONA, get_teacher_turn
 from app.tts import synthesize_speech
 
 
 def _format_history(history: list[dict]) -> str:
     lines = []
     for turn in history:
-        speaker = "**Tú:**" if turn["role"] == "user" else "**Profesor:**"
-        lines.append(f"{speaker} {turn['content']}")
+        if turn["role"] == "user":
+            lines.append(f"**Tú:** {turn['content']}")
+            continue
+        lines.append(f"**Profesor:** {turn['content']}")
+        suggestion = turn.get("suggestion")
+        if suggestion:
+            lines.append(f"💡 {suggestion}")
     return "\n\n".join(lines)
 
 
@@ -28,8 +33,9 @@ def handle_turn(audio_path: str | None, history: list[dict]):
     user_text = transcribe_audio(audio_path)
     history.append({"role": "user", "content": user_text})
 
-    reply_text = get_teacher_reply(history, persona_key=DEFAULT_PERSONA)
-    history.append({"role": "assistant", "content": reply_text})
+    turn = get_teacher_turn(history, persona_key=DEFAULT_PERSONA)
+    reply_text = turn["reply"]
+    history.append({"role": "assistant", "content": reply_text, "suggestion": turn.get("suggestion")})
 
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         reply_audio_path = tmp.name

@@ -2,6 +2,7 @@
 y llamada al modelo de chat de OpenAI.
 """
 
+import json
 from pathlib import Path
 
 from openai import OpenAI
@@ -23,11 +24,21 @@ You are an AI English conversation teacher having a spoken conversation with a \
 student whose native language is Spanish. Your goal is to help them improve \
 conversational fluency for remote work, not to prepare them for an exam.
 
+You must respond with two separate channels, "reply" and "suggestion":
+- "reply" is what gets spoken out loud to the student. Keep it natural,
+  conversational, and appropriately brief — like a real spoken exchange, not a
+  lecture.
+- "suggestion" is shown to the student as text, never spoken. Use it to point
+  out a more natural or correct way to phrase something they just said this
+  turn — quote their original phrase and give a better alternative in one or
+  two short sentences. Set it to null if nothing stands out.
+
 Rules you must always follow:
-1. Hybrid correction: only correct grammar or word choice inline, within your \
-reply, if the error breaks comprehension. Do not interrupt the conversation for \
-minor issues (fine-grained grammar, unnatural phrasing) — those get noted \
-internally and surface later in the end-of-session report instead.
+1. Hybrid correction: only correct grammar or word choice inline, within \
+"reply", if the error breaks comprehension. Never let "reply" turn into a \
+correction lecture — minor issues (fine-grained grammar, unnatural phrasing) \
+belong in "suggestion" instead, every turn, not just when they break \
+comprehension.
 2. Flexible scenario: start the conversation by proposing a scenario or topic \
 (e.g. "let's talk about your weekend", "let's practice a job interview"), but \
 follow the conversation naturally wherever the student takes it.
@@ -38,10 +49,31 @@ level they declare.
 know the word in English, translate it on the fly and keep the conversation \
 going naturally. Treat that word as "vocabulary to reinforce" for the report.
 5. Cross-session memory: {memory_summary}
-
-Keep your responses natural, conversational, and appropriately brief — like a \
-real spoken exchange, not a lecture.
 """
+
+TURN_JSON_SCHEMA = {
+    "name": "teacher_turn",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "reply": {
+                "type": "string",
+                "description": "Natural, conversational reply to be spoken out loud to the student.",
+            },
+            "suggestion": {
+                "type": ["string", "null"],
+                "description": (
+                    "A short, friendly written tip about a more natural or correct way to "
+                    "phrase what the student said this turn, quoting their original phrase and "
+                    "a better alternative. Null if nothing stands out."
+                ),
+            },
+        },
+        "required": ["reply", "suggestion"],
+        "additionalProperties": False,
+    },
+}
 
 _client = None
 
@@ -65,19 +97,24 @@ def build_system_prompt(persona_key: str = DEFAULT_PERSONA, memory_summary: str 
     return f"{fixed}\n---\nPersonality for this session:\n{persona}"
 
 
-def get_teacher_reply(
+def get_teacher_turn(
     history: list[dict],
     persona_key: str = DEFAULT_PERSONA,
     memory_summary: str = "",
-) -> str:
+) -> dict:
     """history: lista de mensajes [{"role": "user"|"assistant", "content": str}, ...]
     sin incluir el mensaje de sistema (se agrega acá).
+
+    Devuelve {"reply": str, "suggestion": str | None}. "reply" es lo que se
+    sintetiza en audio; "suggestion" se muestra como texto aparte, sin hablar.
     """
     client = _get_client()
     system_prompt = build_system_prompt(persona_key, memory_summary)
-    messages = [{"role": "system", "content": system_prompt}, *history]
+    messages = [{"role": "system", "content": system_prompt}]
+    messages += [{"role": turn["role"], "content": turn["content"]} for turn in history]
     response = client.chat.completions.create(
         model=config.OPENAI_CHAT_MODEL,
         messages=messages,
+        response_format={"type": "json_schema", "json_schema": TURN_JSON_SCHEMA},
     )
-    return response.choices[0].message.content
+    return json.loads(response.choices[0].message.content)
