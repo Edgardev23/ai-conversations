@@ -57,10 +57,16 @@ def _format_report(report: dict) -> str:
 def start_session():
     user_id = db.get_or_create_default_user()
     session_id = db.create_session(user_id=user_id, persona=DEFAULT_PERSONA)
-    return session_id
+    memory_summary = db.get_memory_summary(user_id)
+    return session_id, memory_summary
 
 
-def handle_turn(audio_path: str | None, history: list[dict], pronunciation_scores: list[dict]):
+def handle_turn(
+    audio_path: str | None,
+    history: list[dict],
+    pronunciation_scores: list[dict],
+    memory_summary: str,
+):
     history = history or []
     pronunciation_scores = pronunciation_scores or []
 
@@ -75,7 +81,7 @@ def handle_turn(audio_path: str | None, history: list[dict], pronunciation_score
     except RuntimeError:
         pass  # Azure no reconoció habla en el turno (silencio/ruido); no bloquea la charla
 
-    turn = get_teacher_turn(history, persona_key=DEFAULT_PERSONA)
+    turn = get_teacher_turn(history, persona_key=DEFAULT_PERSONA, memory_summary=memory_summary)
     reply_text = turn["reply"]
     history.append({"role": "assistant", "content": reply_text, "suggestion": turn.get("suggestion")})
 
@@ -109,6 +115,7 @@ def build_app() -> gr.Blocks:
         session_id_state = gr.State(None)
         history_state = gr.State([])  # historial de conversación, aislado por sesión/pestaña
         pronunciation_state = gr.State([])  # puntajes de Azure por turno del usuario
+        memory_summary_state = gr.State("")  # resumen de sesiones previas (Fase 8)
 
         conversation = gr.Markdown(label="Conversación")
 
@@ -119,11 +126,11 @@ def build_app() -> gr.Blocks:
         end_session_btn = gr.Button("Terminar sesión")
         report_output = gr.Markdown(label="Reporte final")
 
-        demo.load(start_session, outputs=[session_id_state])
+        demo.load(start_session, outputs=[session_id_state, memory_summary_state])
 
         mic_input.stop_recording(
             handle_turn,
-            inputs=[mic_input, history_state, pronunciation_state],
+            inputs=[mic_input, history_state, pronunciation_state, memory_summary_state],
             outputs=[history_state, conversation, teacher_audio, mic_input, pronunciation_state],
         )
 

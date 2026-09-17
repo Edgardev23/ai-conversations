@@ -133,3 +133,33 @@ def get_recent_session_reports(user_id: int, limit: int = 3) -> list[dict]:
         return [dict(row) for row in rows]
     finally:
         conn.close()
+
+
+def get_memory_summary(user_id: int, limit: int = 5) -> str:
+    """Resumen en texto de errores de gramática/fraseo y vocabulario pendiente
+    de las últimas `limit` sesiones, para inyectar en el system prompt del
+    profesor (ver teacher_llm.build_system_prompt). "" si no hay historial.
+    """
+    reports = get_recent_session_reports(user_id, limit=limit)
+    if not reports:
+        return ""
+
+    grammar_errors: list[str] = []
+    vocab_gaps: list[str] = []
+    for report in reports:
+        grammar_errors += json.loads(report["grammar_errors_json"] or "[]")
+        vocab_gaps += json.loads(report["vocab_gaps_json"] or "[]")
+
+    # de-duplicar preservando orden (más reciente primero, get_recent_session_reports ya ordena DESC)
+    grammar_errors = list(dict.fromkeys(grammar_errors))
+    vocab_gaps = list(dict.fromkeys(vocab_gaps))
+
+    lines = []
+    if grammar_errors:
+        lines.append("Grammar/phrasing issues from recent sessions:")
+        lines += [f"- {item}" for item in grammar_errors]
+    if vocab_gaps:
+        lines.append("Vocabulary the student has struggled with recently:")
+        lines += [f"- {item}" for item in vocab_gaps]
+
+    return "\n".join(lines)
