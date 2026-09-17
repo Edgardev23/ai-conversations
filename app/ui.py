@@ -12,7 +12,7 @@ from app import db
 from app.pronunciation import assess_pronunciation
 from app.session_report import generate_report
 from app.stt import transcribe_audio
-from app.teacher_llm import DEFAULT_PERSONA, get_teacher_turn
+from app.teacher_llm import DEFAULT_PERSONA, PERSONAS, get_teacher_turn
 from app.tts import synthesize_speech
 
 
@@ -54,24 +54,25 @@ def _format_report(report: dict) -> str:
     return "\n".join(lines)
 
 
-def start_session():
-    user_id = db.get_or_create_default_user()
-    session_id = db.create_session(user_id=user_id, persona=DEFAULT_PERSONA)
-    memory_summary = db.get_memory_summary(user_id)
-    return session_id, memory_summary
-
-
 def handle_turn(
     audio_path: str | None,
     history: list[dict],
     pronunciation_scores: list[dict],
-    memory_summary: str,
+    session_id: int | None,
+    memory_summary: str | None,
+    persona_key: str,
 ):
     history = history or []
     pronunciation_scores = pronunciation_scores or []
 
     if audio_path is None:
-        return history, _format_history(history), None, None, pronunciation_scores
+        return history, _format_history(history), None, None, pronunciation_scores, session_id, memory_summary
+
+    # la sesión se crea en el primer turno, ya con la persona elegida en el dropdown
+    if session_id is None:
+        user_id = db.get_or_create_default_user()
+        session_id = db.create_session(user_id=user_id, persona=persona_key)
+        memory_summary = db.get_memory_summary(user_id)
 
     user_text = transcribe_audio(audio_path)
     history.append({"role": "user", "content": user_text})
@@ -81,7 +82,7 @@ def handle_turn(
     except RuntimeError:
         pass  # Azure no reconoció habla en el turno (silencio/ruido); no bloquea la charla
 
-    turn = get_teacher_turn(history, persona_key=DEFAULT_PERSONA, memory_summary=memory_summary)
+    turn = get_teacher_turn(history, persona_key=persona_key, memory_summary=memory_summary)
     reply_text = turn["reply"]
     history.append({"role": "assistant", "content": reply_text, "suggestion": turn.get("suggestion")})
 
@@ -89,11 +90,19 @@ def handle_turn(
         reply_audio_path = tmp.name
     synthesize_speech(reply_text, reply_audio_path)
 
-    # el último None limpia el input de audio para que quede listo para el siguiente turno
-    return history, _format_history(history), reply_audio_path, None, pronunciation_scores
+    # el None limpia mic_input para que quede listo para el siguiente turno
+    return (
+        history,
+        _format_history(history),
+        reply_audio_path,
+        None,
+        pronunciation_scores,
+        session_id,
+        memory_summary,
+    )
 
 
-def handle_end_session(session_id: int, history: list[dict], pronunciation_scores: list[dict]):
+def handle_end_session(session_id: int | None, history: list[dict], pronunciation_scores: list[dict]):
     if not history:
         return "No hubo conversación que reportar todavía."
 
@@ -115,7 +124,13 @@ def build_app() -> gr.Blocks:
         session_id_state = gr.State(None)
         history_state = gr.State([])  # historial de conversación, aislado por sesión/pestaña
         pronunciation_state = gr.State([])  # puntajes de Azure por turno del usuario
-        memory_summary_state = gr.State("")  # resumen de sesiones previas (Fase 8)
+        memory_summary_state = gr.State(None)  # resumen de sesiones previas (Fase 8)
+
+        persona_dropdown = gr.Dropdown(
+            choices=list(PERSONAS.keys()),
+            value=DEFAULT_PERSONA,
+            label="Personalidad del profesor",
+        )
 
         conversation = gr.Markdown(label="Conversación")
 
@@ -126,12 +141,25 @@ def build_app() -> gr.Blocks:
         end_session_btn = gr.Button("Terminar sesión")
         report_output = gr.Markdown(label="Reporte final")
 
-        demo.load(start_session, outputs=[session_id_state, memory_summary_state])
-
         mic_input.stop_recording(
             handle_turn,
-            inputs=[mic_input, history_state, pronunciation_state, memory_summary_state],
-            outputs=[history_state, conversation, teacher_audio, mic_input, pronunciation_state],
+            inputs=[
+                mic_input,
+                history_state,
+                pronunciation_state,
+                session_id_state,
+                memory_summary_state,
+                persona_dropdown,
+            ],
+            outputs=[
+                history_state,
+                conversation,
+                teacher_audio,
+                mic_input,
+                pronunciation_state,
+                session_id_state,
+                memory_summary_state,
+            ],
         )
 
         end_session_btn.click(
