@@ -10,7 +10,7 @@ import gradio as gr
 
 from app import db
 from app.pronunciation import assess_pronunciation
-from app.session_report import generate_report
+from app.session_report import DEFAULT_REPORT_MODEL, REPORT_MODELS, generate_report
 from app.stt import transcribe_audio
 from app.teacher_llm import DEFAULT_PERSONA, PERSONAS, get_teacher_turn
 from app.tts import synthesize_speech
@@ -102,11 +102,16 @@ def handle_turn(
     )
 
 
-def handle_end_session(session_id: int | None, history: list[dict], pronunciation_scores: list[dict]):
+def handle_end_session(
+    session_id: int | None,
+    history: list[dict],
+    pronunciation_scores: list[dict],
+    model_key: str,
+):
     if not history:
         return "No hubo conversación que reportar todavía."
 
-    report = generate_report(history, pronunciation_scores or [])
+    report = generate_report(history, pronunciation_scores or [], model_key=model_key)
 
     db.end_session(session_id)
     user_id = db.get_or_create_default_user()
@@ -138,7 +143,14 @@ def build_app() -> gr.Blocks:
             mic_input = gr.Audio(sources=["microphone"], type="filepath", label="Habla aquí")
             teacher_audio = gr.Audio(label="Respuesta del profesor", autoplay=True)
 
-        end_session_btn = gr.Button("Terminar sesión")
+        with gr.Row():
+            report_model_dropdown = gr.Dropdown(
+                choices=list(REPORT_MODELS.keys()),
+                value=DEFAULT_REPORT_MODEL,
+                label="Modelo para la retroalimentación final",
+            )
+            end_session_btn = gr.Button("Terminar sesión")
+
         report_output = gr.Markdown(label="Reporte final")
 
         mic_input.stop_recording(
@@ -164,7 +176,7 @@ def build_app() -> gr.Blocks:
 
         end_session_btn.click(
             handle_end_session,
-            inputs=[session_id_state, history_state, pronunciation_state],
+            inputs=[session_id_state, history_state, pronunciation_state, report_model_dropdown],
             outputs=[report_output],
         )
 
@@ -172,4 +184,4 @@ def build_app() -> gr.Blocks:
 
 
 if __name__ == "__main__":
-    build_app().launch()
+    build_app().launch(css=".gradio-container { padding-top: 32px; }")

@@ -1,5 +1,10 @@
 """Lógica conversacional del profesor: system prompt (bloque fijo + persona)
 y llamada al modelo de chat de OpenAI.
+
+La conversación en vivo siempre usa el modelo económico configurado en
+OPENAI_CHAT_MODEL (turno a turno, muchas llamadas por sesión). El modelo
+"inteligente" para la retroalimentación final se elige aparte, ver
+session_report.py.
 """
 
 import json
