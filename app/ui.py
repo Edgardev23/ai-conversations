@@ -5,6 +5,7 @@ sesión/pestaña.
 """
 
 import tempfile
+import time
 
 import gradio as gr
 
@@ -14,6 +15,12 @@ from app.session_report import DEFAULT_REPORT_MODEL, REPORT_MODELS, generate_rep
 from app.stt import transcribe_audio
 from app.teacher_llm import DEFAULT_PERSONA, PERSONAS, get_teacher_turn
 from app.tts import synthesize_speech
+
+SESSION_WARNING_SECONDS = 15 * 60
+DURATION_WARNING_TEXT = (
+    "⏰ Llevas unos 15-20 minutos en esta sesión. Puedes seguir si quieres, "
+    "pero es un buen momento para cerrarla si prefieres."
+)
 
 
 def _format_history(history: list[dict]) -> str:
@@ -60,21 +67,42 @@ def handle_turn(
     pronunciation_scores: list[dict],
     session_id: int | None,
     memory_summary: str | None,
+    session_start: float | None,
+    duration_notice: str,
     persona_key: str,
 ):
     history = history or []
     pronunciation_scores = pronunciation_scores or []
 
+    no_op = (
+        history,
+        _format_history(history),
+        None,
+        None,
+        pronunciation_scores,
+        session_id,
+        memory_summary,
+        session_start,
+        duration_notice,
+        duration_notice,
+        "",
+    )
+
     if audio_path is None:
-        return history, _format_history(history), None, None, pronunciation_scores, session_id, memory_summary
+        return no_op
 
     # la sesión se crea en el primer turno, ya con la persona elegida en el dropdown
     if session_id is None:
         user_id = db.get_or_create_default_user()
         session_id = db.create_session(user_id=user_id, persona=persona_key)
         memory_summary = db.get_memory_summary(user_id)
+        session_start = time.time()
 
-    user_text = transcribe_audio(audio_path)
+    try:
+        user_text = transcribe_audio(audio_path)
+    except Exception:
+        return (*no_op[:-1], "⚠️ No pude transcribir el audio (problema de conexión con OpenAI). Intenta grabar de nuevo.")
+
     history.append({"role": "user", "content": user_text})
 
     try:
@@ -82,13 +110,40 @@ def handle_turn(
     except RuntimeError:
         pass  # Azure no reconoció habla en el turno (silencio/ruido); no bloquea la charla
 
-    turn = get_teacher_turn(history, persona_key=persona_key, memory_summary=memory_summary)
+    try:
+        turn = get_teacher_turn(history, persona_key=persona_key, memory_summary=memory_summary)
+    except Exception:
+        history.pop()  # el profesor no pudo responder; no dejamos un turno de usuario colgado
+        error = "⚠️ El profesor no pudo responder (problema de conexión con la API). Intenta de nuevo."
+        return (
+            history,
+            _format_history(history),
+            None,
+            None,
+            pronunciation_scores,
+            session_id,
+            memory_summary,
+            session_start,
+            duration_notice,
+            duration_notice,
+            error,
+        )
+
     reply_text = turn["reply"]
     history.append({"role": "assistant", "content": reply_text, "suggestion": turn.get("suggestion")})
 
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        reply_audio_path = tmp.name
-    synthesize_speech(reply_text, reply_audio_path)
+    reply_audio_path = None
+    error = ""
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            reply_audio_path = tmp.name
+        synthesize_speech(reply_text, reply_audio_path)
+    except Exception:
+        reply_audio_path = None
+        error = "⚠️ No se pudo generar el audio de la respuesta (Azure), pero el texto sí quedó arriba."
+
+    if session_start and not duration_notice and (time.time() - session_start) >= SESSION_WARNING_SECONDS:
+        duration_notice = DURATION_WARNING_TEXT
 
     # el None limpia mic_input para que quede listo para el siguiente turno
     return (
@@ -99,6 +154,10 @@ def handle_turn(
         pronunciation_scores,
         session_id,
         memory_summary,
+        session_start,
+        duration_notice,
+        duration_notice,
+        error,
     )
 
 
@@ -111,7 +170,10 @@ def handle_end_session(
     if not history:
         return "No hubo conversación que reportar todavía."
 
-    report = generate_report(history, pronunciation_scores or [], model_key=model_key)
+    try:
+        report = generate_report(history, pronunciation_scores or [], model_key=model_key)
+    except Exception:
+        return "⚠️ No se pudo generar el reporte (problema de conexión con la API). Intenta de nuevo."
 
     db.end_session(session_id)
     user_id = db.get_or_create_default_user()
@@ -130,6 +192,8 @@ def build_app() -> gr.Blocks:
         history_state = gr.State([])  # historial de conversación, aislado por sesión/pestaña
         pronunciation_state = gr.State([])  # puntajes de Azure por turno del usuario
         memory_summary_state = gr.State(None)  # resumen de sesiones previas (Fase 8)
+        session_start_state = gr.State(None)  # timestamp del primer turno (Fase 10)
+        duration_notice_state = gr.State("")  # aviso de duración, una vez mostrado se mantiene
 
         persona_dropdown = gr.Dropdown(
             choices=list(PERSONAS.keys()),
@@ -138,6 +202,8 @@ def build_app() -> gr.Blocks:
         )
 
         conversation = gr.Markdown(label="Conversación")
+        duration_notice_output = gr.Markdown()
+        error_output = gr.Markdown()
 
         with gr.Row():
             mic_input = gr.Audio(sources=["microphone"], type="filepath", label="Habla aquí")
@@ -161,6 +227,8 @@ def build_app() -> gr.Blocks:
                 pronunciation_state,
                 session_id_state,
                 memory_summary_state,
+                session_start_state,
+                duration_notice_state,
                 persona_dropdown,
             ],
             outputs=[
@@ -171,6 +239,10 @@ def build_app() -> gr.Blocks:
                 pronunciation_state,
                 session_id_state,
                 memory_summary_state,
+                session_start_state,
+                duration_notice_state,
+                duration_notice_output,
+                error_output,
             ],
         )
 
