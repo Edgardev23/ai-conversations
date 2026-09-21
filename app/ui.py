@@ -6,6 +6,7 @@ sesión/pestaña.
 
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import gradio as gr
 
@@ -98,21 +99,24 @@ def handle_turn(
         memory_summary = db.get_memory_summary(user_id)
         session_start = time.time()
 
+    # El pronunciation assessment solo depende del audio (no del texto ni de la
+    # respuesta del profesor) y sus resultados no se usan hasta el reporte
+    # final, así que corre en paralelo mientras seguimos con STT -> LLM -> TTS.
+    pronunciation_executor = ThreadPoolExecutor(max_workers=1)
+    pronunciation_future = pronunciation_executor.submit(assess_pronunciation, audio_path)
+
     try:
         user_text = transcribe_audio(audio_path)
     except Exception:
+        pronunciation_executor.shutdown(wait=False)
         return (*no_op[:-1], "⚠️ No pude transcribir el audio (problema de conexión con OpenAI). Intenta grabar de nuevo.")
 
     history.append({"role": "user", "content": user_text})
 
     try:
-        pronunciation_scores.append(assess_pronunciation(audio_path))
-    except RuntimeError:
-        pass  # Azure no reconoció habla en el turno (silencio/ruido); no bloquea la charla
-
-    try:
         turn = get_teacher_turn(history, persona_key=persona_key, memory_summary=memory_summary)
     except Exception:
+        pronunciation_executor.shutdown(wait=False)
         history.pop()  # el profesor no pudo responder; no dejamos un turno de usuario colgado
         error = "⚠️ El profesor no pudo responder (problema de conexión con la API). Intenta de nuevo."
         return (
@@ -141,6 +145,13 @@ def handle_turn(
     except Exception:
         reply_audio_path = None
         error = "⚠️ No se pudo generar el audio de la respuesta (Azure), pero el texto sí quedó arriba."
+
+    try:
+        pronunciation_scores.append(pronunciation_future.result())
+    except RuntimeError:
+        pass  # Azure no reconoció habla en el turno (silencio/ruido); no bloquea la charla
+    finally:
+        pronunciation_executor.shutdown(wait=False)
 
     if session_start and not duration_notice and (time.time() - session_start) >= SESSION_WARNING_SECONDS:
         duration_notice = DURATION_WARNING_TEXT

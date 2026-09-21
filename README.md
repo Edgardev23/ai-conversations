@@ -4,16 +4,21 @@ App local para practicar speaking en inglés con un "profesor" de IA por voz: co
 
 ## Setup
 
+> Ejecuta cada línea como un comando independiente (no las pegues todas juntas en una sola línea).
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # completar con tus API keys
+cp -n .env.example .env  # crea .env solo si no existe; completar con tus API keys
 ```
 
 ## Ejecutar
 
+Con el entorno virtual ya creado (paso anterior), solo hace falta activarlo y lanzar la app:
+
 ```bash
+source .venv/bin/activate
 python -m app.ui
 ```
 
