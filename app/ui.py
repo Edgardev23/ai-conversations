@@ -1,17 +1,15 @@
 """Interfaz Gradio: une STT + LLM + TTS + Pronunciation Assessment, y
 dispara el reporte final de sesión. Usa gr.State para aislar el
-historial de conversación (y los puntajes de pronunciación) por
-sesión/pestaña.
+historial de conversación por sesión/pestaña.
 """
 
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 import gradio as gr
 
 from app import db
-from app.pronunciation import assess_pronunciation
+from app.pronunciation import collect_scores, drop_assessment, submit_assessment
 from app.session_report import DEFAULT_REPORT_MODEL, REPORT_MODELS, generate_report
 from app.stt import transcribe_audio
 from app.teacher_llm import DEFAULT_PERSONA, PERSONAS, get_teacher_turn
@@ -62,10 +60,37 @@ def _format_report(report: dict) -> str:
     return "\n".join(lines)
 
 
+def _turn_outputs(
+    history: list[dict],
+    session_id: int | None,
+    memory_summary: str | None,
+    session_start: float | None,
+    duration_notice: str,
+    reply_audio_path: str | None = None,
+    error: str = "",
+):
+    """Arma las salidas del turno en el orden que espera el evento de Gradio.
+
+    El None del medio limpia mic_input para que quede listo para el siguiente
+    turno.
+    """
+    return (
+        history,
+        _format_history(history),
+        reply_audio_path,
+        None,
+        session_id,
+        memory_summary,
+        session_start,
+        duration_notice,
+        duration_notice,
+        error,
+    )
+
+
 def handle_turn(
     audio_path: str | None,
     history: list[dict],
-    pronunciation_scores: list[dict],
     session_id: int | None,
     memory_summary: str | None,
     session_start: float | None,
@@ -73,24 +98,9 @@ def handle_turn(
     persona_key: str,
 ):
     history = history or []
-    pronunciation_scores = pronunciation_scores or []
-
-    no_op = (
-        history,
-        _format_history(history),
-        None,
-        None,
-        pronunciation_scores,
-        session_id,
-        memory_summary,
-        session_start,
-        duration_notice,
-        duration_notice,
-        "",
-    )
 
     if audio_path is None:
-        return no_op
+        return _turn_outputs(history, session_id, memory_summary, session_start, duration_notice)
 
     # la sesión se crea en el primer turno, ya con la persona elegida en el dropdown
     if session_id is None:
@@ -99,38 +109,40 @@ def handle_turn(
         memory_summary = db.get_memory_summary(user_id)
         session_start = time.time()
 
-    # El pronunciation assessment solo depende del audio (no del texto ni de la
-    # respuesta del profesor) y sus resultados no se usan hasta el reporte
-    # final, así que corre en paralelo mientras seguimos con STT -> LLM -> TTS.
-    pronunciation_executor = ThreadPoolExecutor(max_workers=1)
-    pronunciation_future = pronunciation_executor.submit(assess_pronunciation, audio_path)
+    # El pronunciation assessment solo depende del audio y sus puntajes no se
+    # usan hasta el reporte final, pero tarda más que el resto del turno junto
+    # (9-15s). Así que se encola y acá no se espera: el turno sigue con
+    # STT -> LLM -> TTS y devuelve. Los puntajes se recogen al cerrar la sesión
+    # (ver handle_end_session).
+    assessment = submit_assessment(session_id, audio_path)
 
     try:
         user_text = transcribe_audio(audio_path)
     except Exception:
-        pronunciation_executor.shutdown(wait=False)
-        return (*no_op[:-1], "⚠️ No pude transcribir el audio (problema de conexión con OpenAI). Intenta grabar de nuevo.")
+        drop_assessment(session_id, assessment)
+        return _turn_outputs(
+            history,
+            session_id,
+            memory_summary,
+            session_start,
+            duration_notice,
+            error="⚠️ No pude transcribir el audio (problema de conexión con OpenAI). Intenta grabar de nuevo.",
+        )
 
     history.append({"role": "user", "content": user_text})
 
     try:
         turn = get_teacher_turn(history, persona_key=persona_key, memory_summary=memory_summary)
     except Exception:
-        pronunciation_executor.shutdown(wait=False)
+        drop_assessment(session_id, assessment)
         history.pop()  # el profesor no pudo responder; no dejamos un turno de usuario colgado
-        error = "⚠️ El profesor no pudo responder (problema de conexión con la API). Intenta de nuevo."
-        return (
+        return _turn_outputs(
             history,
-            _format_history(history),
-            None,
-            None,
-            pronunciation_scores,
             session_id,
             memory_summary,
             session_start,
             duration_notice,
-            duration_notice,
-            error,
+            error="⚠️ El profesor no pudo responder (problema de conexión con la API). Intenta de nuevo.",
         )
 
     reply_text = turn["reply"]
@@ -146,43 +158,35 @@ def handle_turn(
         reply_audio_path = None
         error = "⚠️ No se pudo generar el audio de la respuesta (Azure), pero el texto sí quedó arriba."
 
-    try:
-        pronunciation_scores.append(pronunciation_future.result())
-    except RuntimeError:
-        pass  # Azure no reconoció habla en el turno (silencio/ruido); no bloquea la charla
-    finally:
-        pronunciation_executor.shutdown(wait=False)
-
     if session_start and not duration_notice and (time.time() - session_start) >= SESSION_WARNING_SECONDS:
         duration_notice = DURATION_WARNING_TEXT
 
-    # el None limpia mic_input para que quede listo para el siguiente turno
-    return (
+    return _turn_outputs(
         history,
-        _format_history(history),
-        reply_audio_path,
-        None,
-        pronunciation_scores,
         session_id,
         memory_summary,
         session_start,
         duration_notice,
-        duration_notice,
-        error,
+        reply_audio_path=reply_audio_path,
+        error=error,
     )
 
 
 def handle_end_session(
     session_id: int | None,
     history: list[dict],
-    pronunciation_scores: list[dict],
     model_key: str,
 ):
     if not history:
         return "No hubo conversación que reportar todavía."
 
+    # Único punto donde se esperan los assessments encolados durante la sesión:
+    # la charla ya terminó, así que acá la espera no interrumpe a nadie (y en
+    # general ya están resueltos desde turnos anteriores).
+    pronunciation_scores = collect_scores(session_id)
+
     try:
-        report = generate_report(history, pronunciation_scores or [], model_key=model_key)
+        report = generate_report(history, pronunciation_scores, model_key=model_key)
     except Exception:
         return "⚠️ No se pudo generar el reporte (problema de conexión con la API). Intenta de nuevo."
 
@@ -201,7 +205,6 @@ def build_app() -> gr.Blocks:
 
         session_id_state = gr.State(None)
         history_state = gr.State([])  # historial de conversación, aislado por sesión/pestaña
-        pronunciation_state = gr.State([])  # puntajes de Azure por turno del usuario
         memory_summary_state = gr.State(None)  # resumen de sesiones previas (Fase 8)
         session_start_state = gr.State(None)  # timestamp del primer turno (Fase 10)
         duration_notice_state = gr.State("")  # aviso de duración, una vez mostrado se mantiene
@@ -235,7 +238,6 @@ def build_app() -> gr.Blocks:
             inputs=[
                 mic_input,
                 history_state,
-                pronunciation_state,
                 session_id_state,
                 memory_summary_state,
                 session_start_state,
@@ -247,7 +249,6 @@ def build_app() -> gr.Blocks:
                 conversation,
                 teacher_audio,
                 mic_input,
-                pronunciation_state,
                 session_id_state,
                 memory_summary_state,
                 session_start_state,
@@ -259,7 +260,7 @@ def build_app() -> gr.Blocks:
 
         end_session_btn.click(
             handle_end_session,
-            inputs=[session_id_state, history_state, pronunciation_state, report_model_dropdown],
+            inputs=[session_id_state, history_state, report_model_dropdown],
             outputs=[report_output],
         )
 
