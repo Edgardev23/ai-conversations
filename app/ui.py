@@ -7,6 +7,7 @@ sesión/pestaña.
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import gradio as gr
 
@@ -14,27 +15,17 @@ from app import db
 from app.pronunciation import assess_pronunciation
 from app.session_report import DEFAULT_REPORT_MODEL, REPORT_MODELS, generate_report
 from app.stt import transcribe_audio
-from app.teacher_llm import DEFAULT_PERSONA, PERSONAS, get_teacher_turn
+from app.teacher_llm import DEFAULT_PERSONA, get_teacher_turn
 from app.tts import synthesize_speech
+from app.ui_html import HEADER_HTML, PERSONA_META, render_conversation, render_persona_cards
+
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 
 SESSION_WARNING_SECONDS = 15 * 60
 DURATION_WARNING_TEXT = (
     "⏰ Llevas unos 15-20 minutos en esta sesión. Puedes seguir si quieres, "
     "pero es un buen momento para cerrarla si prefieres."
 )
-
-
-def _format_history(history: list[dict]) -> str:
-    lines = []
-    for turn in history:
-        if turn["role"] == "user":
-            lines.append(f"**Tú:** {turn['content']}")
-            continue
-        lines.append(f"**Profesor:** {turn['content']}")
-        suggestion = turn.get("suggestion")
-        if suggestion:
-            lines.append(f"💡 {suggestion}")
-    return "\n\n".join(lines)
 
 
 def _format_report(report: dict) -> str:
@@ -77,7 +68,7 @@ def handle_turn(
 
     no_op = (
         history,
-        _format_history(history),
+        render_conversation(history, persona_key),
         None,
         None,
         pronunciation_scores,
@@ -121,7 +112,7 @@ def handle_turn(
         error = "⚠️ El profesor no pudo responder (problema de conexión con la API). Intenta de nuevo."
         return (
             history,
-            _format_history(history),
+            render_conversation(history, persona_key),
             None,
             None,
             pronunciation_scores,
@@ -159,7 +150,7 @@ def handle_turn(
     # el None limpia mic_input para que quede listo para el siguiente turno
     return (
         history,
-        _format_history(history),
+        render_conversation(history, persona_key),
         reply_audio_path,
         None,
         pronunciation_scores,
@@ -196,8 +187,8 @@ def handle_end_session(
 def build_app() -> gr.Blocks:
     db.init_db()
 
-    with gr.Blocks(title="Práctica de Speaking en Inglés") as demo:
-        gr.Markdown("# Práctica de Speaking en Inglés")
+    with gr.Blocks(title="ConversAItion") as demo:
+        gr.HTML(HEADER_HTML)
 
         session_id_state = gr.State(None)
         history_state = gr.State([])  # historial de conversación, aislado por sesión/pestaña
@@ -205,30 +196,49 @@ def build_app() -> gr.Blocks:
         memory_summary_state = gr.State(None)  # resumen de sesiones previas (Fase 8)
         session_start_state = gr.State(None)  # timestamp del primer turno (Fase 10)
         duration_notice_state = gr.State("")  # aviso de duración, una vez mostrado se mantiene
+        persona_state = gr.State(DEFAULT_PERSONA)  # alimenta lo mismo que antes el dropdown
 
-        persona_dropdown = gr.Dropdown(
-            choices=list(PERSONAS.keys()),
-            value=DEFAULT_PERSONA,
-            label="Personalidad del profesor",
-        )
-
-        conversation = gr.Markdown(label="Conversación")
-        duration_notice_output = gr.Markdown()
-        error_output = gr.Markdown()
+        duration_notice_output = gr.Markdown(elem_id="duration-notice")
+        error_output = gr.Markdown(elem_id="error-notice")
 
         with gr.Row():
-            mic_input = gr.Audio(sources=["microphone"], type="filepath", label="Habla aquí")
-            teacher_audio = gr.Audio(label="Respuesta del profesor", autoplay=True)
+            with gr.Column(scale=2):
+                with gr.Column(elem_classes=["persona-panel"]):
+                    persona_cards_html = gr.HTML(render_persona_cards(DEFAULT_PERSONA))
+                    persona_triggers = {}
+                    with gr.Row(visible=True):
+                        for key in PERSONA_META:
+                            persona_triggers[key] = gr.Button(
+                                key, elem_id=f"trigger-{key}", elem_classes=["persona-trigger"]
+                            )
 
-        with gr.Row():
-            report_model_dropdown = gr.Dropdown(
-                choices=list(REPORT_MODELS.keys()),
-                value=DEFAULT_REPORT_MODEL,
-                label="Modelo para la retroalimentación final",
-            )
-            end_session_btn = gr.Button("Terminar sesión")
+                with gr.Column(elem_classes=["mic-section"]):
+                    mic_input = gr.Audio(
+                        sources=["microphone"], type="filepath", label="Habla aquí", elem_id="mic-recorder"
+                    )
+                    gr.HTML('<div class="mic-label">Habla aquí</div>')
+
+                report_model_dropdown = gr.Dropdown(
+                    choices=list(REPORT_MODELS.keys()),
+                    value=DEFAULT_REPORT_MODEL,
+                    label="Modelo para la retroalimentación final",
+                    elem_classes=["model-select"],
+                )
+
+            with gr.Column(scale=3):
+                with gr.Column(elem_classes=["chat-panel"]):
+                    gr.HTML('<div class="chat-panel-title">Conversación</div>')
+                    conversation = gr.HTML(render_conversation([], DEFAULT_PERSONA))
+                teacher_audio = gr.Audio(label="Respuesta del profesor", autoplay=True, elem_id="teacher-audio-hidden")
+                end_session_btn = gr.Button("Terminar sesión", elem_classes=["end-session-btn"])
 
         report_output = gr.Markdown(label="Reporte final")
+
+        for key, trigger_btn in persona_triggers.items():
+            trigger_btn.click(
+                lambda k=key: (k, render_persona_cards(k)),
+                outputs=[persona_state, persona_cards_html],
+            )
 
         mic_input.stop_recording(
             handle_turn,
@@ -240,7 +250,7 @@ def build_app() -> gr.Blocks:
                 memory_summary_state,
                 session_start_state,
                 duration_notice_state,
-                persona_dropdown,
+                persona_state,
             ],
             outputs=[
                 history_state,
@@ -267,4 +277,4 @@ def build_app() -> gr.Blocks:
 
 
 if __name__ == "__main__":
-    build_app().launch(css=".gradio-container { padding-top: 32px; }")
+    build_app().launch(css_paths=[ASSETS_DIR / "styles.css"])

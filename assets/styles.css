@@ -1,0 +1,511 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+
+/* ==========================================================================
+   Tema: variables de color/sombra. Por ahora solo modo oscuro (Fase 12.2).
+   El modo claro y el interruptor se agregan en la siguiente fase.
+   ========================================================================== */
+:root,
+html[data-theme="dark"] {
+  --bg-app: #0b1120;
+  --bg-app-soft: #0f1729;
+  --bg-panel: #141d33;
+  --bg-panel-raised: #1a2540;
+  --bg-input: #101a30;
+  --border-soft: rgba(148, 163, 184, 0.14);
+  --border-strong: rgba(148, 163, 184, 0.28);
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --accent-purple: #8b5cf6;
+  --accent-blue: #3b82f6;
+  --accent-gradient: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+  --accent-gradient-soft: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(59, 130, 246, 0.18));
+
+  --mic-red: #ef4444;
+  --mic-red-dark: #b91c1c;
+
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  --shadow-soft: 0 8px 24px rgba(2, 6, 23, 0.45);
+  --shadow-raised: 0 12px 32px rgba(2, 6, 23, 0.55);
+  --shadow-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
+}
+
+/* ==========================================================================
+   Base: tipografía y fondo general de la app
+   ========================================================================== */
+html, body {
+  background: var(--bg-app) !important;
+  margin: 0;
+}
+
+.gradio-container {
+  font-family: 'Nunito', 'Segoe UI', sans-serif !important;
+  background: var(--bg-app) !important;
+  color: var(--text-primary) !important;
+  max-width: 1280px !important;
+  margin: 0 auto !important;
+}
+
+.gradio-container * {
+  font-family: 'Nunito', 'Segoe UI', sans-serif;
+}
+
+/* Gradio pinta sus propios paneles con su paleta: los re-mapeamos a la nuestra
+   para que dropdowns/botones nativos no se vean como una isla clara. */
+.gradio-container {
+  --body-background-fill: var(--bg-app);
+  --background-fill-primary: var(--bg-panel);
+  --background-fill-secondary: var(--bg-panel-raised);
+  --block-background-fill: var(--bg-panel);
+  --block-border-color: var(--border-soft);
+  --border-color-primary: var(--border-soft);
+  --body-text-color: var(--text-primary);
+  --body-text-color-subdued: var(--text-secondary);
+  --input-background-fill: var(--bg-input);
+  --block-label-text-color: var(--text-secondary);
+  --block-title-text-color: var(--text-primary);
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 18px 8px 8px;
+}
+
+.app-title {
+  font-size: 2.3rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.app-title .grad {
+  display: inline-block !important;
+  background-image: var(--accent-gradient) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+}
+
+/* ==========================================================================
+   Tarjetas de personalidad
+   ========================================================================== */
+.persona-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-soft), var(--shadow-inner-highlight);
+}
+
+.persona-panel-title {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text-primary);
+  margin: 0 0 14px 2px;
+}
+
+.persona-cards {
+  display: flex;
+  gap: 10px;
+}
+
+.persona-card {
+  position: relative;
+  flex: 1;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 6px 12px !important;
+  background: var(--bg-panel-raised) !important;
+  border: 2px solid transparent !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-soft), var(--shadow-inner-highlight) !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  min-width: 0 !important;
+}
+
+.persona-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(139, 92, 246, 0.4) !important;
+}
+
+.persona-card.selected {
+  border-color: var(--accent-purple) !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.22), var(--shadow-raised) !important;
+}
+
+.persona-card .icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent-gradient-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.persona-card .icon-wrap svg {
+  width: 44px;
+  height: 44px;
+}
+
+.persona-trigger {
+  display: none !important;
+}
+
+.persona-card span.card-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.persona-card.selected span.card-label {
+  color: var(--text-primary);
+}
+
+.persona-card .check-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-purple);
+  color: #fff;
+  font-size: 11px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.persona-card.selected .check-badge {
+  display: flex;
+}
+
+/* ==========================================================================
+   Micrófono
+   ========================================================================== */
+.mic-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 10px;
+}
+
+.mic-section #mic-recorder {
+  width: 160px;
+  height: 160px;
+}
+
+.mic-section #mic-recorder .wrap,
+.mic-section #mic-recorder .controls,
+.mic-section #mic-recorder .component-wrapper {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.mic-section #mic-recorder label,
+.mic-section #mic-recorder .icon-button-wrapper,
+.mic-section #mic-recorder .mic-select,
+.mic-section #mic-recorder .microphone,
+.mic-section #mic-recorder [data-testid="recording-waveform"] {
+  display: none !important;
+}
+
+.mic-section #mic-recorder {
+  position: relative;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fb7185, var(--mic-red) 55%, var(--mic-red-dark) 100%) !important;
+  box-shadow: 0 14px 30px rgba(239, 68, 68, 0.45), inset 0 2px 6px rgba(255, 255, 255, 0.35), inset 0 -8px 14px rgba(0, 0, 0, 0.25) !important;
+  border: none !important;
+  animation: mic-halo 2.4s ease-in-out infinite;
+}
+
+.mic-section #mic-recorder .audio-container,
+.mic-section #mic-recorder .component-wrapper,
+.mic-section #mic-recorder .controls,
+.mic-section #mic-recorder .controls .wrapper {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.mic-section #mic-recorder .record-button,
+.mic-section #mic-recorder .stop-button,
+.mic-section #mic-recorder .stop-button-paused,
+.mic-section #mic-recorder .pause-button,
+.mic-section #mic-recorder .resume-button {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  border: none !important;
+  font-size: 0 !important;
+  color: transparent !important;
+  cursor: pointer;
+}
+
+/* Ícono de micrófono propio, superpuesto sobre el botón real (que queda
+   invisible pero sigue siendo el elemento clickeable). mask-image en vez de
+   background-image para poder usar los degradados/colores del tema. */
+.mic-section #mic-recorder::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 52px;
+  height: 52px;
+  background-color: #fff;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15z'/%3E%3Cpath d='M19 11.5a7 7 0 0 1-14 0' stroke='%23000' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Cpath d='M12 18.5V22M8.5 22h7' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15z'/%3E%3Cpath d='M19 11.5a7 7 0 0 1-14 0' stroke='%23000' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Cpath d='M12 18.5V22M8.5 22h7' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  pointer-events: none;
+  z-index: 2;
+}
+
+@keyframes mic-halo {
+  0%, 100% { box-shadow: 0 14px 30px rgba(239, 68, 68, 0.45), 0 0 0 0 rgba(239, 68, 68, 0.35), inset 0 2px 6px rgba(255,255,255,0.35), inset 0 -8px 14px rgba(0,0,0,0.25); }
+  50% { box-shadow: 0 14px 30px rgba(239, 68, 68, 0.45), 0 0 0 16px rgba(239, 68, 68, 0), inset 0 2px 6px rgba(255,255,255,0.35), inset 0 -8px 14px rgba(0,0,0,0.25); }
+}
+
+.mic-label {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+/* ==========================================================================
+   Panel de conversación
+   ========================================================================== */
+.chat-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft), var(--shadow-inner-highlight);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+}
+
+.chat-panel-title {
+  font-weight: 800;
+  margin: 0 0 12px 2px;
+  color: var(--text-primary);
+}
+
+.chat-scroll {
+  flex: 1;
+  max-height: 480px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-right: 4px;
+}
+
+.chat-empty {
+  margin: auto;
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 40px 12px;
+}
+
+.chat-empty .emoji {
+  font-size: 2.4rem;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.bubble-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.bubble-row.user {
+  flex-direction: row-reverse;
+}
+
+.bubble-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--accent-gradient-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  overflow: hidden;
+}
+
+.bubble-avatar svg {
+  width: 22px;
+  height: 22px;
+}
+
+.bubble {
+  max-width: 72%;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  line-height: 1.4;
+  font-weight: 600;
+  font-size: 0.95rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.bubble.teacher {
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+
+.bubble.user {
+  /* background-image (no shorthand): var() anidado dentro de var() se pierde
+     si se asigna vía la propiedad corta "background" (bug de serialización
+     de Gradio/Chromium al reinyectar el CSS). */
+  background-image: var(--accent-gradient);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.suggestion-card {
+  margin-left: 42px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  max-width: 72%;
+}
+
+.suggestion-card svg {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.suggestion-card .suggestion-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.suggestion-card .suggestion-label {
+  font-weight: 800;
+  color: var(--warning);
+  display: block;
+  margin-bottom: 2px;
+  font-size: 0.78rem;
+}
+
+/* Audio real del profesor: se mantiene en el DOM (autoplay) pero sin su
+   interfaz nativa, ya que el texto vive en las burbujas de arriba. */
+#teacher-audio-hidden {
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* ==========================================================================
+   Selector de modelo + botón terminar sesión
+   ========================================================================== */
+.model-select label {
+  color: var(--text-muted) !important;
+  font-size: 0.8rem !important;
+}
+
+.end-session-btn {
+  background: linear-gradient(135deg, #6d28d9, #4c1d95) !important;
+  color: #ede9fe !important;
+  font-weight: 800 !important;
+  border: none !important;
+  border-radius: var(--radius-pill) !important;
+  box-shadow: var(--shadow-raised), var(--shadow-inner-highlight) !important;
+  padding: 14px !important;
+}
+
+.end-session-btn:hover {
+  filter: brightness(1.08);
+}
+
+/* ==========================================================================
+   Avisos (duración / error)
+   ========================================================================== */
+.notice-banner {
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.notice-banner:empty {
+  display: none;
+  padding: 0;
+  margin: 0;
+}
+
+#duration-notice p {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin: 0;
+}
+
+#error-notice p {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin: 0;
+}
+
+#duration-notice:has(p:empty), #error-notice:has(p:empty) {
+  display: none;
+}

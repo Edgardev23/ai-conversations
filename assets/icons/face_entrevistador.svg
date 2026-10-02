@@ -1,0 +1,24 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="entSuit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="entTie" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="entSkin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f3c6a0"/>
+      <stop offset="100%" stop-color="#e0a878"/>
+    </linearGradient>
+  </defs>
+  <path d="M8 60c0-13 10.7-21 24-21s24 8 24 21v4H8z" fill="url(#entSuit)"/>
+  <path d="M24 40l8 6 8-6 2 4-10 16-10-16z" fill="#f8fafc"/>
+  <path d="M30 44l2 3 2-3-2 16-2-16z" fill="url(#entTie)"/>
+  <circle cx="32" cy="26" r="15" fill="url(#entSkin)"/>
+  <path d="M17 22c0-9 7-14 15-14s15 5 15 14c-3-3-9-5-15-5s-12 2-15 5z" fill="#2b2118"/>
+  <circle cx="26" cy="27" r="2.2" fill="#2b1a12"/>
+  <circle cx="38" cy="27" r="2.2" fill="#2b1a12"/>
+  <path d="M26 34c2.5 2 9.5 2 12 0" stroke="#8a5a3a" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+</svg>

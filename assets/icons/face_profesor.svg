@@ -1,0 +1,27 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="profTweed" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="profCap" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4c1d95"/>
+      <stop offset="100%" stop-color="#2e1065"/>
+    </linearGradient>
+    <linearGradient id="profSkin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe0bd"/>
+      <stop offset="100%" stop-color="#f0c097"/>
+    </linearGradient>
+  </defs>
+  <path d="M8 60c0-13 10.7-21 24-21s24 8 24 21v4H8z" fill="url(#profTweed)"/>
+  <rect x="29" y="40" width="6" height="8" fill="#5b2fb8"/>
+  <circle cx="32" cy="27" r="15" fill="url(#profSkin)"/>
+  <circle cx="26" cy="28" r="2.2" fill="#2b1a12"/>
+  <circle cx="38" cy="28" r="2.2" fill="#2b1a12"/>
+  <path d="M25 34c2.5 2.2 11.5 2.2 14 0" stroke="#7a4b32" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <path d="M19 24c3-1 6-1.4 6-1.4M39 24c-3-1-6-1.4-6-1.4" stroke="#5b3a29" stroke-width="2" stroke-linecap="round"/>
+  <path d="M14 16c6-6 30-6 36 0-2 3-6 4-18 4s-16-1-18-4z" fill="#3b0f78"/>
+  <path d="M32 8l20 7-20 7-20-7z" fill="url(#profCap)"/>
+  <circle cx="32" cy="22" r="2" fill="#fbbf24"/>
+  <path d="M52 15v8" stroke="#2e1065" stroke-width="1.6"/>
+</svg>
