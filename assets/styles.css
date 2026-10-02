@@ -38,6 +38,12 @@ html[data-theme="dark"] {
   --radius-md: 16px;
   --radius-sm: 12px;
   --radius-pill: 999px;
+
+  /* glifos como máscaras: el color lo pone background-color de cada botón */
+  --glyph-mic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15z'/%3E%3Cpath d='M19 11.5a7 7 0 0 1-14 0' stroke='%23000' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Cpath d='M12 18.5V22M8.5 22h7' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --glyph-stop: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6' y='6' width='12' height='12' rx='2.5'/%3E%3C/svg%3E");
+  --glyph-pause: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6' y='4' width='4' height='16' rx='1.2'/%3E%3Crect x='14' y='4' width='4' height='16' rx='1.2'/%3E%3C/svg%3E");
+  --glyph-play: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8 5l11 7-11 7z'/%3E%3C/svg%3E");
 }
 
 /* ==========================================================================
@@ -217,78 +223,134 @@ html, body {
   padding: 28px 10px;
 }
 
+/* Importante: Gradio alterna grabar/parar/pausar cambiando el `display` de
+   cada botón (solo uno está visible a la vez). Nunca tocamos `display` acá:
+   el círculo rojo es el botón que Gradio tenga activo en ese momento. Tampoco
+   ocultamos el waveform, porque su contenedor necesita tamaño real para
+   inicializarse (ocultarlo dejaba el micrófono abierto sin botón de parar). */
 .mic-section #mic-recorder {
-  width: 160px;
-  height: 160px;
+  width: 100%;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow: visible !important;
 }
 
 .mic-section #mic-recorder .wrap,
 .mic-section #mic-recorder .controls,
+.mic-section #mic-recorder .audio-container,
 .mic-section #mic-recorder .component-wrapper {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+  padding: 0 !important;
+  width: 100% !important;
 }
 
 .mic-section #mic-recorder label,
 .mic-section #mic-recorder .icon-button-wrapper,
 .mic-section #mic-recorder .mic-select,
-.mic-section #mic-recorder .microphone,
-.mic-section #mic-recorder [data-testid="recording-waveform"] {
+.mic-section #mic-recorder .record-icon {
   display: none !important;
 }
 
-.mic-section #mic-recorder {
-  position: relative;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fb7185, var(--mic-red) 55%, var(--mic-red-dark) 100%) !important;
-  box-shadow: 0 14px 30px rgba(239, 68, 68, 0.45), inset 0 2px 6px rgba(255, 255, 255, 0.35), inset 0 -8px 14px rgba(0, 0, 0, 0.25) !important;
-  border: none !important;
-  animation: mic-halo 2.4s ease-in-out infinite;
+/* Gradio dibuja su propio puntito rojo con ::before dentro de los botones */
+.mic-section #mic-recorder .record-button::before,
+.mic-section #mic-recorder .stop-button::before,
+.mic-section #mic-recorder .stop-button-paused::before,
+.mic-section #mic-recorder .pause-button::before,
+.mic-section #mic-recorder .resume-button::before {
+  display: none !important;
+  content: none !important;
 }
 
-.mic-section #mic-recorder .audio-container,
-.mic-section #mic-recorder .component-wrapper,
-.mic-section #mic-recorder .controls,
+/* el SVG nativo del botón de pausa/reanudar: lo reemplaza nuestro glifo */
+.mic-section #mic-recorder .pause-button > svg,
+.mic-section #mic-recorder .resume-button > svg {
+  display: none !important;
+}
+
 .mic-section #mic-recorder .controls .wrapper {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  padding: 0 !important;
-  margin: 0 !important;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
+/* --- botón principal: grabar / parar (círculo rojo 3D) --- */
 .mic-section #mic-recorder .record-button,
 .mic-section #mic-recorder .stop-button,
-.mic-section #mic-recorder .stop-button-paused,
-.mic-section #mic-recorder .pause-button,
-.mic-section #mic-recorder .resume-button {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
+.mic-section #mic-recorder .stop-button-paused {
+  position: relative;
+  width: 132px !important;
+  height: 132px !important;
+  min-width: 132px !important;
+  padding: 0 !important;
   border-radius: 50% !important;
-  background: transparent !important;
   border: none !important;
   font-size: 0 !important;
   color: transparent !important;
   cursor: pointer;
+  background-image: radial-gradient(circle at 35% 30%, #fb7185, var(--mic-red) 55%, var(--mic-red-dark) 100%) !important;
+  box-shadow: 0 14px 30px rgba(239, 68, 68, 0.45), inset 0 2px 6px rgba(255, 255, 255, 0.35),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.25) !important;
+  transition: transform 0.15s ease;
 }
 
-/* Ícono de micrófono propio, superpuesto sobre el botón real (que queda
-   invisible pero sigue siendo el elemento clickeable). mask-image en vez de
-   background-image para poder usar los degradados/colores del tema. */
-.mic-section #mic-recorder::after {
+.mic-section #mic-recorder .record-button:hover {
+  transform: scale(1.04);
+}
+
+/* En reposo: halo suave. Grabando: el círculo late y el halo se expande. */
+.mic-section #mic-recorder .record-button {
+  animation: mic-halo 2.4s ease-in-out infinite;
+}
+
+.mic-section #mic-recorder .stop-button,
+.mic-section #mic-recorder .stop-button-paused {
+  animation: mic-recording 1.3s ease-in-out infinite;
+}
+
+/* --- botones secundarios: pausar / reanudar (solo visibles grabando) ---
+   Van absolutos a la derecha del círculo para que éste no se mueva de su
+   sitio cuando aparecen. */
+.mic-section #mic-recorder .pause-button,
+.mic-section #mic-recorder .resume-button {
+  position: absolute;
+  left: calc(50% + 86px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 52px !important;
+  height: 52px !important;
+  min-width: 52px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  border: 1px solid var(--border-strong) !important;
+  font-size: 0 !important;
+  color: transparent !important;
+  cursor: pointer;
+  background-image: linear-gradient(145deg, var(--bg-panel-raised), var(--bg-panel)) !important;
+  box-shadow: var(--shadow-soft), var(--shadow-inner-highlight) !important;
+  transition: transform 0.15s ease;
+}
+
+.mic-section #mic-recorder .pause-button:hover,
+.mic-section #mic-recorder .resume-button:hover {
+  transform: translateY(-50%) scale(1.08);
+}
+
+/* --- glifos: cada botón trae el suyo, así el ícono sigue al estado --- */
+.mic-section #mic-recorder .record-button::after,
+.mic-section #mic-recorder .stop-button::after,
+.mic-section #mic-recorder .stop-button-paused::after,
+.mic-section #mic-recorder .pause-button::after,
+.mic-section #mic-recorder .resume-button::after {
   content: "";
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 52px;
-  height: 52px;
   background-color: #fff;
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15z'/%3E%3Cpath d='M19 11.5a7 7 0 0 1-14 0' stroke='%23000' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Cpath d='M12 18.5V22M8.5 22h7' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15z'/%3E%3Cpath d='M19 11.5a7 7 0 0 1-14 0' stroke='%23000' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Cpath d='M12 18.5V22M8.5 22h7' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-position: center;
@@ -296,12 +358,75 @@ html, body {
   -webkit-mask-size: contain;
   mask-size: contain;
   pointer-events: none;
-  z-index: 2;
+}
+
+.mic-section #mic-recorder .record-button::after {
+  width: 48px;
+  height: 48px;
+  -webkit-mask-image: var(--glyph-mic);
+  mask-image: var(--glyph-mic);
+}
+
+.mic-section #mic-recorder .stop-button::after,
+.mic-section #mic-recorder .stop-button-paused::after {
+  width: 40px;
+  height: 40px;
+  -webkit-mask-image: var(--glyph-stop);
+  mask-image: var(--glyph-stop);
+}
+
+.mic-section #mic-recorder .pause-button::after {
+  width: 20px;
+  height: 20px;
+  background-color: var(--text-primary);
+  -webkit-mask-image: var(--glyph-pause);
+  mask-image: var(--glyph-pause);
+}
+
+.mic-section #mic-recorder .resume-button::after {
+  width: 20px;
+  height: 20px;
+  background-color: var(--text-primary);
+  -webkit-mask-image: var(--glyph-play);
+  mask-image: var(--glyph-play);
+}
+
+/* --- barra de ondas de voz (Gradio la muestra solo mientras graba) --- */
+.mic-section #mic-recorder .microphone {
+  width: 100% !important;
+  max-width: 230px;
+  min-height: 46px;
+  margin: 0 auto 14px !important;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-inner-highlight);
+  overflow: hidden;
+}
+
+/* el waveform de reproducción no lleva fondo: vacío debe ser invisible */
+.mic-section #mic-recorder [data-testid="recording-waveform"] {
+  width: 100% !important;
+  max-width: 230px;
+  margin: 0 auto !important;
 }
 
 @keyframes mic-halo {
   0%, 100% { box-shadow: 0 14px 30px rgba(239, 68, 68, 0.45), 0 0 0 0 rgba(239, 68, 68, 0.35), inset 0 2px 6px rgba(255,255,255,0.35), inset 0 -8px 14px rgba(0,0,0,0.25); }
   50% { box-shadow: 0 14px 30px rgba(239, 68, 68, 0.45), 0 0 0 16px rgba(239, 68, 68, 0), inset 0 2px 6px rgba(255,255,255,0.35), inset 0 -8px 14px rgba(0,0,0,0.25); }
+}
+
+/* grabando: el círculo se expande y se contrae, con halo más marcado */
+@keyframes mic-recording {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 14px 30px rgba(239, 68, 68, 0.5), 0 0 0 0 rgba(239, 68, 68, 0.45), inset 0 2px 6px rgba(255,255,255,0.35), inset 0 -8px 14px rgba(0,0,0,0.25);
+  }
+  50% {
+    transform: scale(1.07);
+    box-shadow: 0 14px 34px rgba(239, 68, 68, 0.6), 0 0 0 22px rgba(239, 68, 68, 0), inset 0 2px 6px rgba(255,255,255,0.35), inset 0 -8px 14px rgba(0,0,0,0.25);
+  }
 }
 
 .mic-label {
