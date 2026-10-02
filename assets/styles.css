@@ -236,10 +236,13 @@ html, body {
   overflow: visible !important;
 }
 
+/* Ojo: `.controls` lo usan DOS estados distintos — los botones de grabar y,
+   cuando ya hay audio grabado, el reproductor. El reproductor se excluye acá
+   (tiene data-testid) y se estiliza aparte más abajo. */
 .mic-section #mic-recorder .wrap,
-.mic-section #mic-recorder .controls,
+.mic-section #mic-recorder .controls:not([data-testid]),
 .mic-section #mic-recorder .audio-container,
-.mic-section #mic-recorder .component-wrapper {
+.mic-section #mic-recorder .component-wrapper:not([data-testid]) {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -412,6 +415,68 @@ html, body {
   margin: 0 auto !important;
 }
 
+/* ==========================================================================
+   Reproductor posterior a la grabación
+   Al terminar de grabar, Gradio cambia los botones por un reproductor con
+   waveform, tiempos y controles. Antes se montaba encima del micrófono y de
+   la etiqueta "Habla aquí"; acá se le da su propia tarjeta, debajo y con
+   altura real, para que nada quede superpuesto.
+   ========================================================================== */
+.mic-section #mic-recorder .component-wrapper[data-testid^="waveform-"] {
+  width: 100% !important;
+  margin-top: 14px;
+  padding: 12px 14px !important;
+  background: var(--bg-panel-raised) !important;
+  border: 1px solid var(--border-soft) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-soft), var(--shadow-inner-highlight) !important;
+}
+
+.mic-section #mic-recorder .waveform-container {
+  width: 100%;
+  min-height: 48px;
+}
+
+.mic-section #mic-recorder #waveform {
+  min-height: 48px;
+}
+
+.mic-section #mic-recorder .timestamps {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.mic-section #mic-recorder .controls[data-testid="waveform-controls"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 14px;
+  margin-top: 10px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.mic-section #mic-recorder .controls[data-testid="waveform-controls"] .control-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* el indicador "processing | 0.0/0.0" del recortador: discreto y en su línea */
+.mic-section #mic-recorder .controls[data-testid="waveform-controls"] .timestamps,
+.mic-section #mic-recorder .controls[data-testid="waveform-controls"] span {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
 @keyframes mic-halo {
   0%, 100% { box-shadow: 0 14px 30px rgba(239, 68, 68, 0.45), 0 0 0 0 rgba(239, 68, 68, 0.35), inset 0 2px 6px rgba(255,255,255,0.35), inset 0 -8px 14px rgba(0,0,0,0.25); }
   50% { box-shadow: 0 14px 30px rgba(239, 68, 68, 0.45), 0 0 0 16px rgba(239, 68, 68, 0), inset 0 2px 6px rgba(255,255,255,0.35), inset 0 -8px 14px rgba(0,0,0,0.25); }
@@ -567,16 +632,59 @@ html, body {
   font-size: 0.78rem;
 }
 
-/* Audio real del profesor: se mantiene en el DOM (autoplay) pero sin su
-   interfaz nativa, ya que el texto vive en las burbujas de arriba. */
-#teacher-audio-hidden {
-  height: 0 !important;
-  min-height: 0 !important;
-  overflow: hidden;
+/* Audio del profesor: barra compacta al pie del chat para volver a escuchar
+   la última respuesta (se reproduce sola al llegar). */
+#teacher-audio {
+  margin-top: 12px !important;
+  padding: 8px 12px !important;
+  background: var(--bg-panel-raised) !important;
+  border: 1px solid var(--border-soft) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-inner-highlight) !important;
+}
+
+#teacher-audio label[data-testid="block-label"] {
+  background: transparent !important;
   border: none !important;
-  box-shadow: none !important;
-  margin: 0 !important;
+  color: var(--text-muted) !important;
+  font-size: 0.74rem !important;
+  font-weight: 700 !important;
+  padding: 0 0 2px 0 !important;
+}
+
+#teacher-audio .component-wrapper {
   padding: 0 !important;
+  background: transparent !important;
+}
+
+#teacher-audio .waveform-container,
+#teacher-audio #waveform {
+  min-height: 34px;
+}
+
+#teacher-audio .timestamps {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+#teacher-audio .controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  margin-top: 4px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* sin audio todavía: la barra no debería ocupar espacio */
+#teacher-audio:not(:has(.component-wrapper)) {
+  display: none !important;
 }
 
 /* ==========================================================================

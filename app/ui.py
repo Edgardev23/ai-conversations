@@ -229,7 +229,15 @@ def build_app() -> gr.Blocks:
                 with gr.Column(elem_classes=["chat-panel"]):
                     gr.HTML('<div class="chat-panel-title">Conversación</div>')
                     conversation = gr.HTML(render_conversation([], DEFAULT_PERSONA))
-                teacher_audio = gr.Audio(label="Respuesta del profesor", autoplay=True, elem_id="teacher-audio-hidden")
+                    # se reproduce solo al llegar la respuesta, y queda disponible
+                    # para volver a escucharla
+                    teacher_audio = gr.Audio(
+                        label="Repetir última respuesta",
+                        autoplay=True,
+                        elem_id="teacher-audio",
+                        buttons=[],
+                        editable=False,
+                    )
                 end_session_btn = gr.Button("Terminar sesión", elem_classes=["end-session-btn"])
 
         report_output = gr.Markdown(label="Reporte final")
