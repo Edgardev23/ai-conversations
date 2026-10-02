@@ -4,6 +4,7 @@ mismos datos que ya produce la lógica de negocio (app/teacher_llm.py,
 historial de turnos) — no hay estado ni lógica nueva acá, solo presentación.
 """
 
+import base64
 import html
 from functools import lru_cache
 from pathlib import Path
@@ -18,10 +19,21 @@ def _icon(name: str) -> str:
     return (ICONS_DIR / name).read_text(encoding="utf-8")
 
 
+@lru_cache(maxsize=None)
+def _image_data_uri(name: str) -> str:
+    """PNG embebido como data URI (mismo motivo que _icon: nada de rutas estáticas)."""
+    data = base64.b64encode((ICONS_DIR / name).read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{data}"
+
+
 PERSONA_META = {
-    "amigo_casual": {"label": "Amigo casual", "icon": "face_amigo.svg"},
-    "profesor_formal": {"label": "Profesor", "icon": "face_profesor.svg"},
-    "coach_entrevistas": {"label": "Entrevistador ejecutivo", "icon": "face_entrevistador.svg"},
+    "amigo_casual": {"label": "Amigo casual", "icon": "face_amigo.png", "icon_sm": "face_amigo_sm.png"},
+    "profesor_formal": {"label": "Profesor", "icon": "face_profesor.png", "icon_sm": "face_profesor_sm.png"},
+    "coach_entrevistas": {
+        "label": "Entrevistador ejecutivo",
+        "icon": "face_entrevistador.png",
+        "icon_sm": "face_entrevistador_sm.png",
+    },
 }
 
 HEADER_HTML = f"""
@@ -38,7 +50,7 @@ def render_persona_cards(selected: str) -> str:
         onclick = f"document.querySelector('#trigger-{key} button').click()"
         cards.append(f"""
         <div class="persona-card {is_selected}" onclick="{onclick}">
-          <div class="icon-wrap">{_icon(meta["icon"])}</div>
+          <div class="icon-wrap"><img src="{_image_data_uri(meta["icon"])}" alt=""></div>
           <span class="card-label">{html.escape(meta["label"])}</span>
           <div class="check-badge">✓</div>
         </div>
@@ -49,19 +61,18 @@ def render_persona_cards(selected: str) -> str:
     """
 
 
-def _bubble_row(role: str, text: str, persona_icon_svg: str) -> str:
+def _bubble_row(role: str, text: str, persona_avatar_html: str) -> str:
     safe_text = html.escape(text).replace("\n", "<br>")
     if role == "user":
-        avatar = "🧑"
         return f"""
         <div class="bubble-row user">
-          <div class="bubble-avatar">{avatar}</div>
+          <div class="bubble-avatar">🧑</div>
           <div class="bubble user">{safe_text}</div>
         </div>
         """
     return f"""
     <div class="bubble-row teacher">
-      <div class="bubble-avatar">{persona_icon_svg}</div>
+      <div class="bubble-avatar">{persona_avatar_html}</div>
       <div class="bubble teacher">{safe_text}</div>
     </div>
     """
@@ -91,13 +102,13 @@ def render_conversation(history: list[dict], persona_key: str) -> str:
         </div>
         """
 
-    persona_icon_svg = _icon(PERSONA_META[persona_key]["icon"])
+    persona_avatar_html = f'<img src="{_image_data_uri(PERSONA_META[persona_key]["icon_sm"])}" alt="">'
     rows = []
     for turn in history:
         if turn["role"] == "user":
-            rows.append(_bubble_row("user", turn["content"], persona_icon_svg))
+            rows.append(_bubble_row("user", turn["content"], persona_avatar_html))
             continue
-        rows.append(_bubble_row("teacher", turn["content"], persona_icon_svg))
+        rows.append(_bubble_row("teacher", turn["content"], persona_avatar_html))
         suggestion = turn.get("suggestion")
         if suggestion:
             rows.append(_suggestion_card(suggestion))
