@@ -47,7 +47,12 @@ def render_persona_cards(selected: str) -> str:
     cards = []
     for key, meta in PERSONA_META.items():
         is_selected = "selected" if key == selected else ""
-        onclick = f"document.querySelector('#trigger-{key} button').click()"
+        # Gradio pone el elem_id en el propio <button>, pero en otros
+        # componentes lo pone en un div contenedor: aceptamos ambos.
+        onclick = (
+            f"(document.querySelector('#trigger-{key} button')"
+            f" || document.getElementById('trigger-{key}')).click()"
+        )
         cards.append(f"""
         <div class="persona-card {is_selected}" onclick="{onclick}">
           <div class="icon-wrap"><img src="{_image_data_uri(meta["icon"])}" alt=""></div>
