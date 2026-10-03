@@ -24,17 +24,19 @@ DURATION_WARNING_TEXT = (
 )
 
 
-def _format_history(history: list[dict]) -> str:
-    lines = []
+def _format_history(history: list[dict]) -> list[dict]:
+    """Pasa el historial interno al formato de mensajes que espera gr.Chatbot."""
+    messages = []
     for turn in history:
         if turn["role"] == "user":
-            lines.append(f"**Tú:** {turn['content']}")
+            messages.append({"role": "user", "content": turn["content"]})
             continue
-        lines.append(f"**Profesor:** {turn['content']}")
+        content = turn["content"]
         suggestion = turn.get("suggestion")
         if suggestion:
-            lines.append(f"💡 {suggestion}")
-    return "\n\n".join(lines)
+            content = f"{content}\n\n💡 {suggestion}"
+        messages.append({"role": "assistant", "content": content})
+    return messages
 
 
 def _format_report(report: dict) -> str:
@@ -75,22 +77,25 @@ def handle_turn(
     history = history or []
     pronunciation_scores = pronunciation_scores or []
 
-    no_op = (
-        history,
-        _format_history(history),
-        None,
-        None,
-        pronunciation_scores,
-        session_id,
-        memory_summary,
-        session_start,
-        duration_notice,
-        duration_notice,
-        "",
-    )
+    def result(user_audio=None, reply_audio=None, error=""):
+        # el None de mic_input lo limpia para que quede listo para el siguiente turno
+        return (
+            history,
+            _format_history(history),
+            user_audio,
+            reply_audio,
+            None,
+            pronunciation_scores,
+            session_id,
+            memory_summary,
+            session_start,
+            duration_notice,
+            duration_notice,
+            error,
+        )
 
     if audio_path is None:
-        return no_op
+        return result()
 
     # la sesión se crea en el primer turno, ya con la persona elegida en el dropdown
     if session_id is None:
@@ -109,7 +114,10 @@ def handle_turn(
         user_text = transcribe_audio(audio_path)
     except Exception:
         pronunciation_executor.shutdown(wait=False)
-        return (*no_op[:-1], "⚠️ No pude transcribir el audio (problema de conexión con OpenAI). Intenta grabar de nuevo.")
+        return result(
+            user_audio=audio_path,
+            error="⚠️ No pude transcribir el audio (problema de conexión con OpenAI). Intenta grabar de nuevo.",
+        )
 
     history.append({"role": "user", "content": user_text})
 
@@ -118,19 +126,9 @@ def handle_turn(
     except Exception:
         pronunciation_executor.shutdown(wait=False)
         history.pop()  # el profesor no pudo responder; no dejamos un turno de usuario colgado
-        error = "⚠️ El profesor no pudo responder (problema de conexión con la API). Intenta de nuevo."
-        return (
-            history,
-            _format_history(history),
-            None,
-            None,
-            pronunciation_scores,
-            session_id,
-            memory_summary,
-            session_start,
-            duration_notice,
-            duration_notice,
-            error,
+        return result(
+            user_audio=audio_path,
+            error="⚠️ El profesor no pudo responder (problema de conexión con la API). Intenta de nuevo.",
         )
 
     reply_text = turn["reply"]
@@ -156,20 +154,7 @@ def handle_turn(
     if session_start and not duration_notice and (time.time() - session_start) >= SESSION_WARNING_SECONDS:
         duration_notice = DURATION_WARNING_TEXT
 
-    # el None limpia mic_input para que quede listo para el siguiente turno
-    return (
-        history,
-        _format_history(history),
-        reply_audio_path,
-        None,
-        pronunciation_scores,
-        session_id,
-        memory_summary,
-        session_start,
-        duration_notice,
-        duration_notice,
-        error,
-    )
+    return result(user_audio=audio_path, reply_audio=reply_audio_path, error=error)
 
 
 def handle_end_session(
@@ -212,12 +197,21 @@ def build_app() -> gr.Blocks:
             label="Personalidad del profesor",
         )
 
-        conversation = gr.Markdown(label="Conversación")
+        # Chatbot (y no Markdown) para que el log haga autoscroll al último turno
+        # en vez de volver al inicio cada vez que responde el profesor.
+        conversation = gr.Chatbot(label="Conversación", height=420, autoscroll=True)
         duration_notice_output = gr.Markdown()
         error_output = gr.Markdown()
 
         with gr.Row():
-            mic_input = gr.Audio(sources=["microphone"], type="filepath", label="Habla aquí")
+            # editable=False quita los controles de recorte: al soltar el botón el
+            # turno se envía solo, así que no hay nada que editar sobre la grabación.
+            mic_input = gr.Audio(
+                sources=["microphone"], type="filepath", label="Habla aquí", editable=False
+            )
+            user_audio = gr.Audio(
+                label="Tu último mensaje (escúchate)", interactive=False, editable=False
+            )
             teacher_audio = gr.Audio(label="Respuesta del profesor", autoplay=True)
 
         with gr.Row():
@@ -245,6 +239,7 @@ def build_app() -> gr.Blocks:
             outputs=[
                 history_state,
                 conversation,
+                user_audio,
                 teacher_audio,
                 mic_input,
                 pronunciation_state,
