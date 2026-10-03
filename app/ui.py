@@ -4,9 +4,11 @@ historial de conversación (y los puntajes de pronunciación) por
 sesión/pestaña.
 """
 
+import shutil
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import gradio as gr
 
@@ -22,6 +24,19 @@ DURATION_WARNING_TEXT = (
     "⏰ Llevas unos 15-20 minutos en esta sesión. Puedes seguir si quieres, "
     "pero es un buen momento para cerrarla si prefieres."
 )
+
+
+def _keep_user_audio(audio_path: str) -> str:
+    """Copia la grabación a un archivo propio de la app.
+
+    El path que entrega el micrófono vive en el caché de entradas de Gradio y se
+    limpia junto con el componente; con la copia el reproductor de "Tu último
+    mensaje" conserva el audio igual que el del profesor.
+    """
+    with tempfile.NamedTemporaryFile(suffix=Path(audio_path).suffix or ".wav", delete=False) as tmp:
+        kept_path = tmp.name
+    shutil.copyfile(audio_path, kept_path)
+    return kept_path
 
 
 def _format_history(history: list[dict]) -> list[dict]:
@@ -97,6 +112,8 @@ def handle_turn(
     if audio_path is None:
         return result()
 
+    user_audio_path = _keep_user_audio(audio_path)
+
     # la sesión se crea en el primer turno, ya con la persona elegida en el dropdown
     if session_id is None:
         user_id = db.get_or_create_default_user()
@@ -115,7 +132,7 @@ def handle_turn(
     except Exception:
         pronunciation_executor.shutdown(wait=False)
         return result(
-            user_audio=audio_path,
+            user_audio=user_audio_path,
             error="⚠️ No pude transcribir el audio (problema de conexión con OpenAI). Intenta grabar de nuevo.",
         )
 
@@ -127,7 +144,7 @@ def handle_turn(
         pronunciation_executor.shutdown(wait=False)
         history.pop()  # el profesor no pudo responder; no dejamos un turno de usuario colgado
         return result(
-            user_audio=audio_path,
+            user_audio=user_audio_path,
             error="⚠️ El profesor no pudo responder (problema de conexión con la API). Intenta de nuevo.",
         )
 
@@ -154,7 +171,7 @@ def handle_turn(
     if session_start and not duration_notice and (time.time() - session_start) >= SESSION_WARNING_SECONDS:
         duration_notice = DURATION_WARNING_TEXT
 
-    return result(user_audio=audio_path, reply_audio=reply_audio_path, error=error)
+    return result(user_audio=user_audio_path, reply_audio=reply_audio_path, error=error)
 
 
 def handle_end_session(
@@ -209,9 +226,9 @@ def build_app() -> gr.Blocks:
             mic_input = gr.Audio(
                 sources=["microphone"], type="filepath", label="Habla aquí", editable=False
             )
-            user_audio = gr.Audio(
-                label="Tu último mensaje (escúchate)", interactive=False, editable=False
-            )
+            # mismo reproductor que el del profesor (sin autoplay, para que no suene
+            # encima de la respuesta); conserva la última grabación del usuario
+            user_audio = gr.Audio(label="Tu último mensaje (escúchate)")
             teacher_audio = gr.Audio(label="Respuesta del profesor", autoplay=True)
 
         with gr.Row():
