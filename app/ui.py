@@ -313,23 +313,16 @@ def build_app() -> gr.Blocks:
             outputs=[report_output],
         )
 
-        # Los eventos play/pause de <audio> no hacen bubble, pero sí se
-        # disparan en la fase de captura, así que el listener va en document
-        # con capture=true. Así sobrevive a que Gradio reemplace el <audio>
-        # interno al cambiar de fuente (no hace falta re-engancharlo).
-        demo.load(
+        # Evento `play` propio de Gradio (no el evento nativo del <audio> del
+        # DOM): dispara quando el reproductor del profesor efectivamente
+        # arranca, sin importar el mecanismo interno (autoplay, backend
+        # WebAudio del waveform, etc.) que un listener a nivel de document no
+        # garantiza captar igual en todos los casos.
+        teacher_audio.play(
             None,
             None,
             None,
-            js="""
-            () => {
-                document.addEventListener('play', (e) => {
-                    if (e.target.tagName === 'AUDIO' && e.target.closest('#teacher-audio')) {
-                        document.querySelectorAll('#user-audio audio').forEach((a) => a.pause());
-                    }
-                }, true);
-            }
-            """,
+            js="() => { document.querySelectorAll('#user-audio audio').forEach((a) => a.pause()); }",
         )
 
     return demo
