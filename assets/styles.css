@@ -416,65 +416,14 @@ html, body {
 }
 
 /* ==========================================================================
-   Reproductor posterior a la grabación
-   Al terminar de grabar, Gradio cambia los botones por un reproductor con
-   waveform, tiempos y controles. Antes se montaba encima del micrófono y de
-   la etiqueta "Habla aquí"; acá se le da su propia tarjeta, debajo y con
-   altura real, para que nada quede superpuesto.
+   Reproductor posterior a la grabación: oculto.
+   Gradio lo monta automáticamente debajo del micrófono al terminar de grabar,
+   pero duplica a "Tu último mensaje" (#user-audio) y además trae controles de
+   recorte que no tienen efecto real (el turno ya se envía al soltar el botón,
+   no hay nada que editar sobre la grabación).
    ========================================================================== */
 .mic-section #mic-recorder .component-wrapper[data-testid^="waveform-"] {
-  width: 100% !important;
-  margin-top: 14px;
-  padding: 12px 14px !important;
-  background: var(--bg-panel-raised) !important;
-  border: 1px solid var(--border-soft) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-soft), var(--shadow-inner-highlight) !important;
-}
-
-.mic-section #mic-recorder .waveform-container {
-  width: 100%;
-  min-height: 48px;
-}
-
-.mic-section #mic-recorder #waveform {
-  min-height: 48px;
-}
-
-.mic-section #mic-recorder .timestamps {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 6px;
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
-.mic-section #mic-recorder .controls[data-testid="waveform-controls"] {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 10px 14px;
-  margin-top: 10px;
-  padding: 0 !important;
-  background: transparent !important;
-  border: none !important;
-}
-
-.mic-section #mic-recorder .controls[data-testid="waveform-controls"] .control-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-/* el indicador "processing | 0.0/0.0" del recortador: discreto y en su línea */
-.mic-section #mic-recorder .controls[data-testid="waveform-controls"] .timestamps,
-.mic-section #mic-recorder .controls[data-testid="waveform-controls"] span {
-  font-size: 0.7rem;
-  color: var(--text-muted);
+  display: none !important;
 }
 
 @keyframes mic-halo {
@@ -684,6 +633,64 @@ html, body {
 
 /* sin audio todavía: la barra no debería ocupar espacio */
 #teacher-audio:not(:has(.component-wrapper)) {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Audio del usuario: mismo patrón compacto que el del profesor (#teacher-audio),
+   pero como tarjeta propia en el panel izquierdo, debajo del micrófono, para
+   que el estudiante pueda volver a escuchar lo último que dijo.
+   ========================================================================== */
+#user-audio {
+  margin-top: 4px !important;
+  padding: 10px 14px !important;
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border-soft) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-soft), var(--shadow-inner-highlight) !important;
+}
+
+#user-audio label[data-testid="block-label"] {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  padding: 0 0 4px 0 !important;
+}
+
+#user-audio .component-wrapper {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+#user-audio .waveform-container,
+#user-audio #waveform {
+  min-height: 34px;
+}
+
+#user-audio .timestamps {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+#user-audio .controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  margin-top: 4px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* sin audio todavía: la tarjeta no debería ocupar espacio */
+#user-audio:not(:has(.component-wrapper)) {
   display: none !important;
 }
 
